@@ -147,18 +147,28 @@ async function loadDtcs() {
 }
 
 async function openProcedure(code, focusChunk) {
+  return showPage(invoke("procedure", { code }), code, focusChunk);
+}
+
+async function openPage(pageId, focusChunk) {
+  return showPage(invoke("page", { pageId }), `page ${pageId}`, focusChunk);
+}
+
+async function showPage(request, label, focusChunk) {
   try {
-    procedure = await invoke("procedure", { code });
+    procedure = await request;
   } catch (e) {
-    log(`procedure ${code}: ${e}`, "fail");
+    log(`procedure ${label}: ${e}`, "fail");
     return;
   }
+  const code = procedure.code || procedure.title;
   $("#proc-title").textContent = `PROCEDURE · ${procedure.title}`;
   $("#proc-src").textContent = `manual p.${procedure.page_id}`;
   const idx = focusChunk ? procedure.sections.findIndex((s) => s.id === focusChunk) : -1;
   active = idx >= 0 ? idx : 0;
   renderProcedure();
   log(`procedure ${code}: ${procedure.sections.length} sections`);
+  return procedure;
 }
 
 function renderProcedure() {
@@ -198,8 +208,17 @@ $("#proc-next").addEventListener("click", () => {
 function renderAnswer(r) {
   const byId = Object.fromEntries(r.sources.map((s) => [s.id, s]));
   const box = $("#answer");
-  const passing = r.verified.claims.filter((c) => c.verdict === "pass");
+  // verified claims, in the order the pipeline put them (manual order)
+  const pool = r.verified.claims.filter((c) => c.verdict === "pass");
+  const passing = r.answer.claims.map((sc) => {
+    const i = pool.findIndex((c) => c.text === sc.text);
+    return i >= 0 ? pool.splice(i, 1)[0] : null;
+  }).filter(Boolean).concat(pool);
+  const best = r.answer.best_match;
   let html = "";
+  if (best && (r.answer.weak || !passing.length)) {
+    html += `<div class="weak">This may not fully answer the question${r.answer.weak_reason ? ` (${esc(r.answer.weak_reason)})` : ""}. Best match in the manual: <a data-best="1">${esc(best.title)}</a>${best.has_steps ? " — its step tables are open in the procedure panel." : "."}</div>`;
+  }
   for (const c of passing) {
     const srcs = c.cites.map((id) => byId[id]).filter(Boolean);
     const ocr = srcs.filter((s) => s.ocr);
@@ -217,9 +236,10 @@ function renderAnswer(r) {
     const s = byId[ns.chunk_id];
     html += `<div class="claim"><span class="lead">Recommendation:</span> continue with ${esc(ns.step_label)}${s ? ` in “${esc(s.section_heading || s.title)}”` : ""}.</div>`;
   }
-  if (!passing.length) html += `<div class="muted">No statement could be verified against the manual. The retrieved pages are listed below.</div>`;
+  if (!passing.length && !best) html += `<div class="muted">No statement could be verified against the manual. The retrieved pages are listed below.</div>`;
   for (const n of r.answer.not_verified) html += `<div class="nv">Not verified: ${esc(n)}</div>`;
   box.innerHTML = html;
+  box.querySelector("a[data-best]")?.addEventListener("click", () => openPage(best.page_id, best.chunk_id));
 
   const cited = new Set(passing.flatMap((c) => c.cites));
   const list = r.sources.filter((s) => cited.has(s.id));
@@ -228,10 +248,13 @@ function renderAnswer(r) {
   sbox.innerHTML = (list.length ? "Sources: " : "Retrieved: ") + shown.map((s) => `<a data-id="${esc(s.id)}">${esc(s.title)}${s.ocr ? " (table image)" : ""}</a>`).join(" · ");
   sbox.querySelectorAll("a").forEach((a) => a.addEventListener("click", () => openSource(a.dataset.id)));
 
-  // jump the procedure walker to the recommended step when it is on the open page
+  // Walker: the recommended step if it is on the open page; otherwise open the
+  // best-matching page when the answer is weak or that page has step tables.
   if (ns && ns.verdict === "pass" && procedure && procedure.sections.some((s) => s.id === ns.chunk_id)) {
     active = procedure.sections.findIndex((s) => s.id === ns.chunk_id);
     renderProcedure();
+  } else if (best && (r.answer.weak || best.has_steps || !passing.length) && (!procedure || procedure.page_id !== best.page_id)) {
+    openPage(best.page_id, best.chunk_id);
   }
 }
 

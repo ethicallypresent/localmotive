@@ -104,6 +104,8 @@ Rules:
 - Text shown as [see image] could not be read reliably: do not guess it; say the value is in the manual's table image and cite that chunk.
 - If the chunks do not cover part of the question, add a claim saying so (no citation needed when it contains no numbers).
 - When a chunk contains a diagnostic table or procedure with a next step, set next_step to that chunk id and the step label (for example \"Step 2\"); otherwise set next_step to null.
+- Answer the question itself from the most relevant chunk. Do not answer only with facts about the vehicle record.
+- When listing procedure steps, keep the manual's order.
 - Be brief and practical. No safety boilerplate beyond what the manual says.";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -309,6 +311,161 @@ pub struct Answer {
     pub not_verified: Vec<String>,
     pub retried: bool,
     pub all_verified: bool,
+    /// The retrieved page that best matches the question (title terms, then rank).
+    #[serde(default)]
+    pub best_match: Option<BestMatch>,
+    /// The verified claims probably do not answer the question; point to `best_match`.
+    #[serde(default)]
+    pub weak: bool,
+    #[serde(default)]
+    pub weak_reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BestMatch {
+    pub chunk_id: String,
+    pub page_id: u32,
+    pub title: String,
+    pub breadcrumb: String,
+    /// The page has OCR'd step tables (open it in the procedure walker).
+    pub has_steps: bool,
+}
+
+fn term_hits(text: &str, terms: &[String]) -> usize {
+    let t = text.to_lowercase();
+    terms
+        .iter()
+        .filter(|w| t.contains(w.as_str()) || (w.len() > 5 && t.contains(&w[..5])))
+        .count()
+}
+
+/// Retrieved page whose title (and section heading) has the most query-term
+/// hits; ties go to the higher-ranked chunk.
+pub fn best_match(retrieved: &RetrievedFile) -> Option<BestMatch> {
+    let terms = lm_retrieve::query_terms(&retrieved.query);
+    let (_, best) = retrieved.chunks.iter().enumerate().max_by_key(|(i, r)| {
+        (
+            term_hits(
+                &format!("{} {}", r.chunk.title, r.chunk.section_heading),
+                &terms,
+            ),
+            std::cmp::Reverse(*i),
+        )
+    })?;
+    let c = &best.chunk;
+    let has_steps = retrieved.chunks.iter().any(|r| {
+        r.chunk.page_id == c.page_id
+            && r.chunk.source == Source::Ocr
+            && r.chunk.section_heading.starts_with("Step")
+    });
+    Some(BestMatch {
+        chunk_id: c.id.clone(),
+        page_id: c.page_id,
+        title: c.title.clone(),
+        breadcrumb: c.breadcrumb.clone(),
+        has_steps,
+    })
+}
+
+/// Deterministic relevance check. Weak when no verified claim cites a manual
+/// chunk, or the cited pages miss the best-matching page while their titles
+/// share no query term and the best page's title does.
+pub fn relevance(
+    retrieved: &RetrievedFile,
+    v: &VerifiedFile,
+    best: Option<&BestMatch>,
+) -> (bool, String) {
+    let terms = lm_retrieve::query_terms(&retrieved.query);
+    let cited: Vec<&Chunk> = v
+        .claims
+        .iter()
+        .filter(|c| c.verdict == Verdict::Pass)
+        .flat_map(|c| c.cites.iter())
+        .filter_map(|id| {
+            retrieved
+                .chunks
+                .iter()
+                .find(|r| &r.chunk.id == id)
+                .map(|r| &r.chunk)
+        })
+        .collect();
+    if cited.is_empty() {
+        return (true, "no verified statement from the manual".into());
+    }
+    let Some(best) = best else {
+        return (false, String::new());
+    };
+    let cites_best = cited.iter().any(|c| c.page_id == best.page_id);
+    let best_hits = term_hits(&best.title, &terms);
+    let cited_hits = cited
+        .iter()
+        .map(|c| term_hits(&c.title, &terms))
+        .max()
+        .unwrap_or(0);
+    if !cites_best && best_hits > 0 && cited_hits < best_hits {
+        return (
+            true,
+            format!(
+                "the answer does not use the best-matching page \"{}\"",
+                best.title
+            ),
+        );
+    }
+    (false, String::new())
+}
+
+/// Where a claim sits in its source chunk: position of its most specific
+/// token (a number if any, else its rarest long word in that chunk).
+fn anchor(claim: &str, chunk: &Chunk) -> usize {
+    let hay = chunk.text.to_lowercase();
+    let nums = lm_verify::extract_numbers(claim);
+    if let Some(p) = nums
+        .iter()
+        .filter_map(|n| hay.find(&n.to_lowercase()))
+        .min()
+    {
+        return p;
+    }
+    let words: Vec<String> = claim
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| w.len() >= 5)
+        .map(str::to_lowercase)
+        .collect();
+    words
+        .iter()
+        .filter(|w| hay.contains(w.as_str()))
+        .min_by_key(|w| hay.matches(w.as_str()).count())
+        .and_then(|w| hay.find(w.as_str()))
+        .unwrap_or(usize::MAX)
+}
+
+/// Order claims as the manual does: vehicle facts first, then by the rank of
+/// the cited chunk, then by position inside it; uncited notes last.
+pub fn order_claims<'a>(
+    claims: Vec<&'a lm_types::VerifiedClaim>,
+    retrieved: &RetrievedFile,
+) -> Vec<&'a lm_types::VerifiedClaim> {
+    let mut keyed: Vec<((u8, usize, usize), usize, &lm_types::VerifiedClaim)> = claims
+        .into_iter()
+        .enumerate()
+        .map(|(i, c)| {
+            let first = c.cites.iter().find_map(|id| {
+                retrieved
+                    .chunks
+                    .iter()
+                    .position(|r| &r.chunk.id == id)
+                    .map(|rank| (rank, &retrieved.chunks[rank].chunk))
+            });
+            let key = match first {
+                Some((rank, chunk)) => (1, rank, anchor(&c.text, chunk)),
+                None if c.cites.iter().any(|id| id == VEHICLE_SOURCE_ID) => (0, 0, i),
+                None => (2, 0, i),
+            };
+            (key, i, c)
+        })
+        .collect();
+    keyed.sort_by_key(|(k, i, _)| (*k, *i));
+    keyed.into_iter().map(|(_, _, c)| c).collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -429,13 +586,23 @@ pub fn shown_answer(
     };
     let mut claims = Vec::new();
     let mut not_verified = Vec::new();
+    let passing = order_claims(
+        v.claims
+            .iter()
+            .filter(|c| c.verdict == Verdict::Pass)
+            .collect(),
+        retrieved,
+    );
+    for c in passing {
+        claims.push(ShownClaim {
+            text: c.text.clone(),
+            sources: c.cites.iter().map(|id| label(id)).collect(),
+            images: images(&c.cites),
+        });
+    }
     for c in &v.claims {
         if c.verdict == Verdict::Pass {
-            claims.push(ShownClaim {
-                text: c.text.clone(),
-                sources: c.cites.iter().map(|id| label(id)).collect(),
-                images: images(&c.cites),
-            });
+            continue;
         } else {
             let srcs: Vec<String> = c
                 .cites
@@ -459,6 +626,8 @@ pub fn shown_answer(
             source: label(&n.chunk_id),
             images: images(std::slice::from_ref(&n.chunk_id)),
         });
+    let best = best_match(retrieved);
+    let (weak, weak_reason) = relevance(retrieved, v, best.as_ref());
     Answer {
         question: question.into(),
         all_verified: v.ok,
@@ -466,6 +635,9 @@ pub fn shown_answer(
         next_step,
         not_verified,
         retried,
+        best_match: best,
+        weak,
+        weak_reason,
     }
 }
 
@@ -495,11 +667,25 @@ pub fn answer_markdown(a: &Answer) -> String {
     for n in &a.not_verified {
         let _ = writeln!(s, "\n_Not verified:_ {n}");
     }
-    if a.claims.is_empty() {
-        let _ = writeln!(
-            s,
-            "\n_No verified answer; the manual pages above may still help._"
-        );
+    if let Some(b) = a
+        .best_match
+        .as_ref()
+        .filter(|_| a.weak || a.claims.is_empty())
+    {
+        {
+            let _ = writeln!(
+                s,
+                "\n**This may not fully answer the question** ({}). Best match in the manual: **{}** (page {}){}.",
+                a.weak_reason,
+                b.title,
+                b.page_id,
+                if b.has_steps {
+                    " — open it in the procedure walker for the step tables"
+                } else {
+                    ""
+                }
+            );
+        }
     }
     s
 }
@@ -891,6 +1077,88 @@ mod tests {
         assert_eq!(a.claims[1].images, vec!["images/x.png"]);
         let md = answer_markdown(&a);
         assert!(md.contains("check the picture"));
+    }
+
+    #[test]
+    fn claims_follow_manual_order_and_weak_answers_point_to_best_page() {
+        let mut steps = chunk(
+            "aaaa",
+            "1. Remove the caliper bolts.\n2. Pivot the caliper up.\n3. Install the lower guide pin and tighten to 54 Nm (40 ft. lbs.).",
+            Source::Html,
+        );
+        steps.title = "Brake Pads Replacement - Front".into();
+        let mut other = chunk("bbbb", "Lubricate the caliper bolt boots.", Source::Html);
+        other.title = "Brake Caliper Bracket Replacement".into();
+        other.page_id = 14257;
+        let retrieved = RetrievedFile {
+            schema_version: 1,
+            query: "replace front brake pads".into(),
+            chunks: vec![
+                RetrievedChunk {
+                    score: 1.0,
+                    chunk: steps,
+                },
+                RetrievedChunk {
+                    score: 0.5,
+                    chunk: other,
+                },
+            ],
+        };
+        let claim = |t: &str, id: &str| Claim {
+            text: t.into(),
+            cites: vec![id.into()],
+        };
+        let draft = DraftFile {
+            schema_version: 1,
+            answer: vec![
+                claim("Lubricate the caliper bolt boots.", "bbbb"),
+                claim(
+                    "Tighten the lower guide pin to 54 Nm (40 ft. lbs.).",
+                    "aaaa",
+                ),
+                claim("Pivot the caliper up.", "aaaa"),
+            ],
+            next_step: None,
+        };
+        let v = lm_verify::verify(&draft, &retrieved, None);
+        let a = shown_answer("replace front brake pads", &retrieved, &v, false);
+        let order: Vec<&str> = a.claims.iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(
+            order,
+            vec![
+                "Pivot the caliper up.",
+                "Tighten the lower guide pin to 54 Nm (40 ft. lbs.).",
+                "Lubricate the caliper bolt boots."
+            ]
+        );
+        assert_eq!(
+            a.best_match.as_ref().unwrap().title,
+            "Brake Pads Replacement - Front"
+        );
+        assert!(!a.weak);
+
+        // only a claim citing the weaker page: weak, points at the best page
+        let draft = DraftFile {
+            schema_version: 1,
+            answer: vec![claim("Lubricate the caliper bolt boots.", "bbbb")],
+            next_step: None,
+        };
+        let v = lm_verify::verify(&draft, &retrieved, None);
+        let a = shown_answer("replace front brake pads", &retrieved, &v, false);
+        assert!(a.weak, "{a:?}");
+        assert!(
+            answer_markdown(&a)
+                .contains("Best match in the manual: **Brake Pads Replacement - Front**")
+        );
+
+        // vehicle-only answer: weak
+        let draft = DraftFile {
+            schema_version: 1,
+            answer: vec![],
+            next_step: None,
+        };
+        let v = lm_verify::verify(&draft, &retrieved, None);
+        assert!(shown_answer("replace front brake pads", &retrieved, &v, false).weak);
     }
 
     #[test]

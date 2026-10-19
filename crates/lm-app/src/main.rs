@@ -392,6 +392,39 @@ struct Procedure {
     sections: Vec<SourceView>,
 }
 
+/// Every visible chunk of one manual page, in page order (HTML sections and
+/// OCR step tables), for the procedure walker.
+fn page_view(conn: &rusqlite::Connection, page: u32, code: String) -> anyhow::Result<Procedure> {
+    let mut st = conn.prepare(&format!(
+        "SELECT {CHUNK_COLUMNS} FROM chunks WHERE page_id = ?1 AND hidden = 0 ORDER BY rid"
+    ))?;
+    let chunks: Vec<Chunk> = st
+        .query_map([page], lm_index::row_to_chunk)?
+        .map(|r| r.map(|(_, c)| c))
+        .collect::<Result<_, _>>()?;
+    // A heading-only HTML chunk ("Step 1 - Step 8:") adds nothing next to its OCR table.
+    let chunks: Vec<Chunk> = chunks
+        .iter()
+        .filter(|c| {
+            c.source == Source::Ocr
+                || !chunks.iter().any(|o| o.source == Source::Ocr)
+                || c.text.lines().any(|l| !l.trim().is_empty() && !l.trim_start().starts_with("Step "))
+        })
+        .cloned()
+        .collect();
+    let first = chunks
+        .first()
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("no chunks for page {page}"))?;
+    Ok(Procedure {
+        code,
+        title: first.title.clone(),
+        breadcrumb: first.breadcrumb.clone(),
+        page_id: page,
+        sections: chunks.iter().map(SourceView::from).collect(),
+    })
+}
+
 #[tauri::command]
 fn procedure(state: State<'_, AppState>, code: String) -> CmdResult<Procedure> {
     with_db(&state, |conn| {
@@ -400,25 +433,14 @@ fn procedure(state: State<'_, AppState>, code: String) -> CmdResult<Procedure> {
             [&code],
             |r| r.get(0),
         )?;
-        let mut st = conn.prepare(&format!(
-            "SELECT {CHUNK_COLUMNS} FROM chunks WHERE page_id = ?1 AND hidden = 0 ORDER BY rid"
-        ))?;
-        let chunks: Vec<Chunk> = st
-            .query_map([page], lm_index::row_to_chunk)?
-            .map(|r| r.map(|(_, c)| c))
-            .collect::<Result<_, _>>()?;
-        let first = chunks
-            .first()
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("no chunks for page {page}"))?;
-        Ok(Procedure {
-            code,
-            title: first.title.clone(),
-            breadcrumb: first.breadcrumb.clone(),
-            page_id: page,
-            sections: chunks.iter().map(SourceView::from).collect(),
-        })
+        page_view(conn, page, code)
     })
+}
+
+/// Any manual page in the walker (e.g. the best match for a question).
+#[tauri::command]
+fn page(state: State<'_, AppState>, page_id: u32) -> CmdResult<Procedure> {
+    with_db(&state, |conn| page_view(conn, page_id, String::new()))
 }
 
 #[tauri::command]
@@ -494,6 +516,7 @@ fn main() {
             serve_image(&images_root, request.uri().path())
         })
         .invoke_handler(tauri::generate_handler![
+            page,
             boot_state,
             ask,
             dtcs,

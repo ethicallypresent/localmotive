@@ -156,6 +156,8 @@ button, input { font: inherit; }
 .answer .lead { color: var(--amber); }
 .claim { margin-bottom: 8px; }
 .badge { display: inline-block; font-size: 10px; letter-spacing: 2px; color: var(--amber); border: 1px solid var(--amber); padding: 0 5px; margin-left: 6px; }
+.weak { color: var(--amber); border: 1px solid var(--amber); padding: 6px 10px; margin-bottom: 10px; box-shadow: 0 0 10px rgba(255, 179, 0, .2); }
+.weak a { color: var(--amber); text-decoration: underline; cursor: pointer; }
 .nv { color: var(--amber); opacity: .8; font-size: 12px; }
 .thinking { color: var(--magenta); animation: pulse 1.2s infinite; }
 .sources { overflow-wrap: anywhere; max-height: 4.5em; overflow-y: auto; font-size: 11px; opacity: .6; padding-top: 6px; border-top: 1px dashed var(--line); margin-top: 6px; }
