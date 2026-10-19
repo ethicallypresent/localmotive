@@ -32,11 +32,21 @@ pub struct Eval {
 
 /// BM25 (+ exact DTC) only: no query embeddings are passed.
 pub fn eval_bm25(conn: &Connection, golden: &[GoldenQuery]) -> Result<Eval> {
+    eval_with(conn, golden, &mut |_| None)
+}
+
+/// Evaluate with an optional query embedder (hybrid when it returns vectors).
+pub fn eval_with(
+    conn: &Connection,
+    golden: &[GoldenQuery],
+    embed: &mut dyn FnMut(&str) -> Option<Vec<f32>>,
+) -> Result<Eval> {
     let mut report = String::new();
     let (mut recall_sum, mut hits, mut rr_sum) = (0.0, 0usize, 0.0);
     for g in golden {
         let r = route(&g.query);
-        let got = retrieve(conn, &r, None)?;
+        let e = embed(&g.query);
+        let got = retrieve(conn, &r, e.as_deref())?;
         let pages: Vec<u32> = got.chunks.iter().map(|c| c.chunk.page_id).collect();
         let found = g.expect.iter().filter(|p| pages.contains(p)).count();
         let recall = found as f64 / g.expect.len().max(1) as f64;

@@ -4,7 +4,7 @@
 //! lm-retrieve route "<question>" [-o route.json]
 //! lm-retrieve retrieve route.json [-o retrieved.json] [--bm25-only]
 //! lm-retrieve ask "<question>" [--bm25-only]       # route + retrieve, prints a summary
-//! lm-retrieve eval [tests/golden.yaml]              # recall@6, BM25 + exact DTC only
+//! lm-retrieve eval [tests/golden.yaml] [--bm25-only] # recall@6; hybrid when vectors exist
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -111,7 +111,9 @@ fn main() -> Result<()> {
                 .unwrap_or_else(|| PathBuf::from("tests/golden.yaml"));
             let golden = lm_retrieve::golden::load(&p)?;
             let conn = lm_index::open_readonly(&db)?;
-            let e = lm_retrieve::golden::eval_bm25(&conn, &golden)?;
+            let e = lm_retrieve::golden::eval_with(&conn, &golden, &mut |q| {
+                query_embedding(&conn, q, bm25_only)
+            })?;
             println!("{}", e.report);
         }
         _ => bail!("usage: lm-retrieve route|retrieve|ask|eval … (see source header)"),
