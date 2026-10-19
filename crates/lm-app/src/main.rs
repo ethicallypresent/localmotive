@@ -408,7 +408,9 @@ fn page_view(conn: &rusqlite::Connection, page: u32, code: String) -> anyhow::Re
         .filter(|c| {
             c.source == Source::Ocr
                 || !chunks.iter().any(|o| o.source == Source::Ocr)
-                || c.text.lines().any(|l| !l.trim().is_empty() && !l.trim_start().starts_with("Step "))
+                || c.text
+                    .lines()
+                    .any(|l| !l.trim().is_empty() && !l.trim_start().starts_with("Step "))
         })
         .cloned()
         .collect();

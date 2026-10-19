@@ -82,6 +82,52 @@ async fn main() -> Result<()> {
                 t.ollama_peak_rss_mib
             );
         }
+        Some("reeval") => {
+            // Recompute the shown answer (order, best match, weak flag) from saved turn files.
+            let dir = PathBuf::from(args.get(1).context("reeval needs a session dir")?);
+            let mut turns: Vec<PathBuf> = std::fs::read_dir(&dir)?
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.join("verified.json").exists())
+                .collect();
+            turns.sort_by_key(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .and_then(|n| n.strip_prefix("turn-"))
+                    .and_then(|n| n.parse::<u32>().ok())
+                    .unwrap_or(0)
+            });
+            let mut weak = 0;
+            for t in &turns {
+                let r: lm_types::RetrievedFile =
+                    serde_json::from_str(&std::fs::read_to_string(t.join("retrieved.json"))?)?;
+                let v: lm_types::VerifiedFile =
+                    serde_json::from_str(&std::fs::read_to_string(t.join("verified.json"))?)?;
+                let a = lm_pipeline::shown_answer(&r.query, &r, &v, false);
+                weak += usize::from(a.weak);
+                let b = a
+                    .best_match
+                    .as_ref()
+                    .map_or(String::new(), |b| format!("{} {}", b.page_id, b.title));
+                println!(
+                    "{:<8} weak={:<5} best={:<50} {}",
+                    t.file_name().unwrap_or_default().to_string_lossy(),
+                    a.weak,
+                    b,
+                    r.query
+                );
+                if a.claims.len() >= 3 {
+                    for c in &a.claims {
+                        println!(
+                            "           · {}",
+                            c.text.chars().take(70).collect::<String>()
+                        );
+                    }
+                }
+            }
+            println!("{weak} of {} flagged weak", turns.len());
+            return Ok(());
+        }
         Some("eval-e2e") => {
             let files: Vec<PathBuf> = if args.len() > 1 {
                 args[1..].iter().map(PathBuf::from).collect()

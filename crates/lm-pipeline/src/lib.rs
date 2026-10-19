@@ -332,11 +332,16 @@ pub struct BestMatch {
 }
 
 fn term_hits(text: &str, terms: &[String]) -> usize {
+    // count distinct 5-char stems so "capacity"/"capacities" score once
     let t = text.to_lowercase();
-    terms
+    let mut stems: Vec<&str> = terms
         .iter()
         .filter(|w| t.contains(w.as_str()) || (w.len() > 5 && t.contains(&w[..5])))
-        .count()
+        .map(|w| if w.len() > 5 { &w[..5] } else { w.as_str() })
+        .collect();
+    stems.sort_unstable();
+    stems.dedup();
+    stems.len()
 }
 
 /// Retrieved page whose title (and section heading) has the most query-term
@@ -368,15 +373,15 @@ pub fn best_match(retrieved: &RetrievedFile) -> Option<BestMatch> {
 }
 
 /// Deterministic relevance check. Weak when no verified claim cites a manual
-/// chunk, or the cited pages miss the best-matching page while their titles
-/// share no query term and the best page's title does.
+/// chunk, or when the best-matching page was ranked above every cited chunk
+/// and has more query terms in its title than any cited chunk's title.
 pub fn relevance(
     retrieved: &RetrievedFile,
     v: &VerifiedFile,
     best: Option<&BestMatch>,
 ) -> (bool, String) {
     let terms = lm_retrieve::query_terms(&retrieved.query);
-    let cited: Vec<&Chunk> = v
+    let cited: Vec<(usize, &Chunk)> = v
         .claims
         .iter()
         .filter(|c| c.verdict == Verdict::Pass)
@@ -385,8 +390,8 @@ pub fn relevance(
             retrieved
                 .chunks
                 .iter()
-                .find(|r| &r.chunk.id == id)
-                .map(|r| &r.chunk)
+                .position(|r| &r.chunk.id == id)
+                .map(|i| (i, &retrieved.chunks[i].chunk))
         })
         .collect();
     if cited.is_empty() {
@@ -395,14 +400,20 @@ pub fn relevance(
     let Some(best) = best else {
         return (false, String::new());
     };
-    let cites_best = cited.iter().any(|c| c.page_id == best.page_id);
+    let best_rank = retrieved
+        .chunks
+        .iter()
+        .position(|r| r.chunk.id == best.chunk_id)
+        .unwrap_or(usize::MAX);
+    let cites_best = cited.iter().any(|(_, c)| c.page_id == best.page_id);
     let best_hits = term_hits(&best.title, &terms);
     let cited_hits = cited
         .iter()
-        .map(|c| term_hits(&c.title, &terms))
+        .map(|(_, c)| term_hits(&c.title, &terms))
         .max()
         .unwrap_or(0);
-    if !cites_best && best_hits > 0 && cited_hits < best_hits {
+    let cited_rank = cited.iter().map(|(i, _)| *i).min().unwrap_or(usize::MAX);
+    if !cites_best && best_hits > cited_hits && best_rank < cited_rank {
         return (
             true,
             format!(
@@ -414,16 +425,38 @@ pub fn relevance(
     (false, String::new())
 }
 
-/// Where a claim sits in its source chunk: position of its most specific
-/// token (a number if any, else its rarest long word in that chunk).
+/// Where a claim sits in its source chunk: the line of its step number when
+/// it starts with one ("15. Remove…"), else the first occurrence of its rarest
+/// multi-character number, else of its rarest long word.
 fn anchor(claim: &str, chunk: &Chunk) -> usize {
     let hay = chunk.text.to_lowercase();
-    let nums = lm_verify::extract_numbers(claim);
-    if let Some(p) = nums
-        .iter()
-        .filter_map(|n| hay.find(&n.to_lowercase()))
-        .min()
+    let claim_l = claim.trim().to_lowercase();
+    if let Some((n, _)) = claim_l
+        .split_once(". ")
+        .filter(|(n, _)| !n.is_empty() && n.len() <= 3 && n.chars().all(|c| c.is_ascii_digit()))
     {
+        let mut offset = 0;
+        for line in hay.split_inclusive('\n') {
+            let t = line.trim_start();
+            if t.strip_prefix(n).is_some_and(|rest| rest.starts_with(". ")) {
+                return offset;
+            }
+            offset += line.len();
+        }
+    }
+    let rarest = |cands: Vec<String>| {
+        cands
+            .into_iter()
+            .filter(|w| hay.contains(w.as_str()))
+            .min_by_key(|w| (hay.matches(w.as_str()).count(), std::cmp::Reverse(w.len())))
+            .and_then(|w| hay.find(w.as_str()))
+    };
+    let nums: Vec<String> = lm_verify::extract_numbers(claim)
+        .into_iter()
+        .filter(|n| n.len() >= 2)
+        .map(|n| n.to_lowercase())
+        .collect();
+    if let Some(p) = rarest(nums) {
         return p;
     }
     let words: Vec<String> = claim
@@ -431,12 +464,7 @@ fn anchor(claim: &str, chunk: &Chunk) -> usize {
         .filter(|w| w.len() >= 5)
         .map(str::to_lowercase)
         .collect();
-    words
-        .iter()
-        .filter(|w| hay.contains(w.as_str()))
-        .min_by_key(|w| hay.matches(w.as_str()).count())
-        .and_then(|w| hay.find(w.as_str()))
-        .unwrap_or(usize::MAX)
+    rarest(words).unwrap_or(usize::MAX)
 }
 
 /// Order claims as the manual does: vehicle facts first, then by the rank of
@@ -1159,6 +1187,40 @@ mod tests {
         };
         let v = lm_verify::verify(&draft, &retrieved, None);
         assert!(shown_answer("replace front brake pads", &retrieved, &v, false).weak);
+    }
+
+    #[test]
+    fn numbered_steps_sort_by_their_line() {
+        let c = chunk(
+            "cccc",
+            "\t1. Remove the caliper (1).\n\t15. Remove the C-clamp from the brake caliper.\n\t16. Inspect the guide pin boots (4).\n\t17. Inspect the piston boot (1).",
+            Source::Html,
+        );
+        let retrieved = RetrievedFile {
+            schema_version: 1,
+            query: "replace front brake pads".into(),
+            chunks: vec![RetrievedChunk {
+                score: 1.0,
+                chunk: c,
+            }],
+        };
+        let claim = |t: &str| Claim {
+            text: t.into(),
+            cites: vec!["cccc".into()],
+        };
+        let draft = DraftFile {
+            schema_version: 1,
+            answer: vec![
+                claim("17. Inspect the piston boot (1)."),
+                claim("16. Inspect the guide pin boots (4)."),
+                claim("15. Remove the C-clamp from the brake caliper."),
+            ],
+            next_step: None,
+        };
+        let v = lm_verify::verify(&draft, &retrieved, None);
+        let a = shown_answer("replace front brake pads", &retrieved, &v, false);
+        let firsts: Vec<&str> = a.claims.iter().map(|c| &c.text[..3]).collect();
+        assert_eq!(firsts, vec!["15.", "16.", "17."]);
     }
 
     #[test]
