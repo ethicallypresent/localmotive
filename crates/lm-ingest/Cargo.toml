@@ -1,0 +1,21 @@
+[package]
+name = "lm-ingest"
+description = "Chunk the offline service manual into chunks.jsonl, compare against the reference, and OCR image tables"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "lm-ingest"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png"] }
+lm-types.workspace = true
+percent-encoding = "2.3.2"
+regex = "1.13.1"
+scraper = "0.27.0"
+serde_json.workspace = true
+sha2 = "0.11.1"

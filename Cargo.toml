@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = ["crates/lm-types", "crates/lm-ingest", "crates/lm-verify", "crates/lm-index", "crates/lm-ollama", "crates/lm-retrieve", "crates/lm-pipeline", "crates/lm-app"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "UNLICENSED"
+publish = false
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+lm-types = { path = "crates/lm-types" }

@@ -1,0 +1,11 @@
+# Five golden questions (one per type) for latency A/B runs. Copied from golden.yaml.
+- query: "spark plug gap"
+  expect: [8668]
+- query: "P0300 misfire at idle"
+  expect: [21499]
+- query: "engine coolant capacity"
+  expect: [8696]
+- query: "replace front brake pads"
+  expect: [14311]
+- query: "rough idle when cold"
+  expect: [2965]

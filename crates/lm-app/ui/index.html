@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LocalMotive</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"></div>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <!-- Boot sequence: each line is a real startup check -->
+  <section id="boot" class="boot">
+    <div class="boot-inner">
+      <h1 class="logo"><span class="c">LOCAL</span><span class="m">MOTIVE</span></h1>
+      <div class="boot-sub">OFFLINE DIAGNOSTIC SYSTEM · INITIALIZING</div>
+      <ol id="boot-steps" class="boot-steps"></ol>
+      <div id="boot-error" class="boot-error" hidden></div>
+    </div>
+  </section>
+
+  <main id="dash" class="dash" hidden>
+    <header class="top">
+      <h1 class="logo"><span class="c">LOCAL</span><span class="m">MOTIVE</span></h1>
+      <div class="pills">
+        <span class="pill warn" title="Telemetry is simulated until an OBD-II adapter is connected"><i></i>OBD LINK: SIMULATED</span>
+        <span class="pill ok"><i></i>CORPUS: UPLANDER'06</span>
+        <span class="pill ok" id="pill-model"><i></i>MODEL</span>
+        <span class="pill warn" id="pill-dtc"><i></i>DTC: 0</span>
+      </div>
+    </header>
+
+    <div class="row1">
+      <section class="panel">
+        <h2>LIVE TELEMETRY <span class="tag-fake">SIMULATED</span></h2>
+        <div class="gauges">
+          <figure class="gauge" data-key="rpm" data-min="0" data-max="3000" data-color="var(--cyan)">
+            <svg viewBox="0 0 110 70"><path class="track" d="M10 62 A45 45 0 0 1 100 62"/><path class="bar" d="M10 62 A45 45 0 0 1 100 62"/></svg>
+            <div class="val">—</div><figcaption>RPM</figcaption>
+          </figure>
+          <figure class="gauge" data-key="ltft" data-min="-25" data-max="25" data-color="var(--amber)" data-unit="%">
+            <svg viewBox="0 0 110 70"><path class="track" d="M10 62 A45 45 0 0 1 100 62"/><path class="bar" d="M10 62 A45 45 0 0 1 100 62"/></svg>
+            <div class="val">—</div><figcaption>LTFT B1</figcaption>
+          </figure>
+          <figure class="gauge" data-key="coolant_f" data-min="0" data-max="260" data-color="var(--green)" data-unit="°F">
+            <svg viewBox="0 0 110 70"><path class="track" d="M10 62 A45 45 0 0 1 100 62"/><path class="bar" d="M10 62 A45 45 0 0 1 100 62"/></svg>
+            <div class="val">—</div><figcaption>COOLANT</figcaption>
+          </figure>
+        </div>
+        <div class="minis"><span>BATT <b id="m-voltage">—</b> V</span><span>STFT B1 <b id="m-stft">—</b> %</span></div>
+      </section>
+
+      <section class="panel">
+        <h2>DIAGNOSTIC TROUBLE CODES <span class="tag-fake">SIMULATED</span></h2>
+        <div id="dtc-list" class="dtc-list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>EVENT LOG</h2>
+        <div id="log" class="log" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <div class="row2">
+      <section class="panel proc">
+        <h2><span id="proc-title">PROCEDURE</span><span id="proc-src" class="src"></span></h2>
+        <div id="proc-steps" class="proc-steps"><div class="muted">Select a trouble code to walk its diagnostic procedure.</div></div>
+        <div class="proc-nav"><button id="proc-prev" type="button">◂ PREV</button><button id="proc-next" type="button">NEXT ▸</button></div>
+      </section>
+
+      <section class="panel assistant">
+        <h2>ASSISTANT</h2>
+        <div class="who">LOCALMOTIVE</div>
+        <div id="answer" class="answer"><span class="muted">Ask about a code, a procedure or a spec. Only statements verified against the manual are shown.</span></div>
+        <div id="sources" class="sources"></div>
+      </section>
+    </div>
+
+    <form id="query" class="query" autocomplete="off">
+      <span class="prompt">&gt;</span>
+      <input id="q" type="text" placeholder="ask about a code, a procedure, a spec..." aria-label="Question">
+      <button id="go" type="submit">DIAGNOSE</button>
+    </form>
+  </main>
+
+  <!-- Source viewer: chunk text and its images -->
+  <dialog id="viewer" class="viewer">
+    <form method="dialog"><button class="close" aria-label="Close">✕</button></form>
+    <h3 id="v-title"></h3>
+    <div id="v-crumb" class="crumb"></div>
+    <div id="v-images" class="v-images"></div>
+    <pre id="v-text"></pre>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

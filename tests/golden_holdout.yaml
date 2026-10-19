@@ -1,0 +1,44 @@
+# Held-out retrieval queries: written BEFORE the router synonym map was
+# added, and never used to tune it. Same format as golden.yaml.
+# Several expected pages are symptom diagnostics whose body is only a
+# "Step 1 - Step N" table image; the title confirms the topic.
+
+- query: "P0128 thermostat code"
+  expect: [21478]
+  note: "P0128 Coolant Thermostat (Coolant Temperature Below Thermostat Regulating Temperature)"
+
+- query: "MAF sensor code P0101"
+  expect: [21466]
+  note: "P0101 Mass Air Flow (MAF) Sensor Performance"
+
+- query: "oil pressure warning light stays on"
+  expect: [6861]
+  note: "Engine Oil Pressure Indicator Always On (step table image)"
+
+- query: "how much transmission fluid does it hold"
+  expect: [3814]
+  note: "Transaxle Capacity Specifications (image table, OCR): bottom pan removal 7.0 L / 7.4 qt"
+
+- query: "air filter replacement"
+  expect: [16311]
+  note: "Air Filter Element: Service and Repair (air cleaner element replacement)"
+
+- query: "replace wiper blades"
+  expect: [9650]
+  note: "Wiper Blade Element Replacement"
+
+- query: "van pulls to the right while driving"
+  expect: [4938]
+  note: "Vehicle Leads/Pulls (step table image)"
+
+- query: "car pulls to one side when braking"
+  expect: [4056]
+  note: "Braking Action Uneven - Pulls to One Side"
+
+- query: "engine overheating"
+  expect: [2728]
+  note: "Engine Overheating (step table images)"
+
+- query: "brake pedal goes almost to the floor"
+  expect: [4048]
+  note: "Brake Pedal Excessive Travel (step table image)"

@@ -1,0 +1,102 @@
+# Golden retrieval queries for the 2006 Chevrolet Uplander FWD 3.5L (VIN L).
+#
+# `expect` lists the page ids (dedupe representatives, i.e. chunks.page_id)
+# whose content answers the question. Each was confirmed by reading the page
+# in the manual; `note` says what the page contains.
+# Run: cargo run --release -p lm-retrieve -- eval tests/golden.yaml
+
+- query: "P0300 misfire at idle"
+  expect: [21499]
+  note: "P0300 Engine Misfire Detected: description, conditions, step tables"
+
+- query: "spark plug gap"
+  expect: [8668]
+  note: "Spark Plug Gap 1.52 mm (0.060 in.)"
+
+- query: "engine coolant capacity"
+  expect: [8696]
+  note: "Capacity Specifications > Coolant: 11.3 qt front A/C only, 12.8 qt rear climate"
+
+- query: "rough idle when cold"
+  expect: [2965]
+  note: "Symptoms - Engine Controls: Rough, Unstable, or Incorrect Idle and Stalling"
+
+- query: "check engine light flashing"
+  expect: [10308, 21499]
+  note: "MIL operation (flashes for catalyst-damaging misfire); P0300 says the MIL flashes"
+
+- query: "front brake caliper bolt torque"
+  expect: [4028]
+  note: "Disc brake fastener specs (image table, OCR): front caliper bolt 54 N.m / 40 lb ft"
+
+- query: "P0171 system too lean"
+  expect: [21488]
+  note: "P0171 Fuel Trim System Lean"
+
+- query: "P0420 catalyst efficiency below threshold"
+  expect: [21523]
+  note: "P0420 Catalyst System Low Efficiency"
+
+- query: "how do I replace the spark plugs"
+  expect: [15448]
+  note: "Spark Plug: Service and Repair (removal/installation, 20 / 15 N.m)"
+
+- query: "how much engine oil does it take"
+  expect: [8697]
+  note: "Engine Oil with Filter 4.0 quarts (3.8 liters)"
+
+- query: "lug nut torque"
+  expect: [8682]
+  note: "Wheel Nuts 140 Nm (100 ft. lbs.)"
+
+- query: "firing order"
+  expect: [8667]
+  note: "Ignition System > Firing Order"
+
+- query: "serpentine belt replacement"
+  expect: [18979]
+  note: "Drive Belt: Service and Repair (manual says 'drive belt', not 'serpentine')"
+
+- query: "engine cranks but won't start"
+  expect: [2969]
+  note: "Engine Cranks But Does Not Run"
+
+- query: "P0442 small evap leak"
+  expect: [21524]
+  note: "P0442 EVAP System Small Leak Detected"
+
+- query: "ABS warning light stays on"
+  expect: [3947]
+  note: "Diagnostic Starting Point - Antilock Brake System"
+
+- query: "wheel alignment specs"
+  expect: [8605]
+  note: "Wheel Alignment Specifications"
+
+- query: "replace front brake pads"
+  expect: [14311]
+  note: "Brake Pads Replacement - Front"
+
+- query: "headlight bulb replacement"
+  expect: [7119]
+  note: "Headlamp: Service and Repair (manual says 'headlamp')"
+
+- query: "power sliding door closes then opens again"
+  expect: [5981]
+  note: "Power Sliding Door (PSD) Closes and Re-Opens"
+
+- query: "replace ignition coil"
+  expect: [15697]
+  note: "Ignition Coil: Service and Repair"
+
+- query: "cabin air filter replacement"
+  expect: [12689]
+  note: "Passenger Compartment Air Filter Replacement"
+
+- query: "battery keeps dying overnight"
+  expect: [4517]
+  note: "Electrical Drain/Parasitic Load Test"
+
+- query: "how do I test the thermostat"
+  expect: [2731]
+  note: "Thermostat Diagnosis (step table is an image; not OCR'd since it is not a DTC page)"

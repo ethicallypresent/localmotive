@@ -1,0 +1,109 @@
+[
+ {
+  "id": "3b5f9e721f88ebc9",
+  "page_id": 15448,
+  "title": "Spark Plug: Service and Repair",
+  "breadcrumb": "Powertrain Management > Ignition System > Spark Plug > Service and Repair",
+  "aliases": [
+   "Powertrain Management > Ignition System > Spark Plug > Service and Repair"
+  ],
+  "section_heading": "SPARK PLUG REPLACEMENT > REMOVAL PROCEDURE",
+  "text": "SPARK PLUG REPLACEMENT\nREMOVAL PROCEDURE\n\tNOTE: Paraphrased test fixture, not manual text. Let the engine cool first, clean around each plug before removing it, and use only the specified plug type.\n\n\t1. The left bank plugs are reached by rotating the engine for access.\n\t2. Disconnect the plug wires.\n\t3. Take the plugs out of the engine.",
+  "images": [
+   "images/DM13Q313/gm60/223352668.png"
+  ],
+  "links": [
+   9453
+  ],
+  "kind": "procedure",
+  "dtc_codes": [],
+  "image_only": false,
+  "source": "html"
+ },
+ {
+  "id": "f3598b8bea83afe7",
+  "page_id": 15448,
+  "title": "Spark Plug: Service and Repair",
+  "breadcrumb": "Powertrain Management > Ignition System > Spark Plug > Service and Repair",
+  "aliases": [
+   "Powertrain Management > Ignition System > Spark Plug > Service and Repair"
+  ],
+  "section_heading": "INSTALLATION PROCEDURE",
+  "text": "INSTALLATION PROCEDURE\n\t1. Set the plug gap per the ignition system specifications.\n\n\tNOTE: Paraphrased test fixture, not manual text. Check the gap of every new plug with a round wire gauge.\n\n\t2. Fit the plugs to the engine.\n\t\t- New cylinder head: tighten the plugs to 20 N.m (15 lb ft).\n\t\t- Existing cylinder head: tighten the plugs to 15 N.m (11 lb ft).\n\n\t3. Reconnect the plug wires.\n\t4. Return the engine to its normal position if it was rotated.",
+  "images": [
+   "images/DM13Q313/gm60/223352668.png"
+  ],
+  "links": [
+   9453
+  ],
+  "kind": "procedure",
+  "dtc_codes": [],
+  "image_only": false,
+  "source": "html"
+ },
+ {
+  "id": "7b32f4441dbbaacd",
+  "page_id": 21499,
+  "title": "P0300",
+  "breadcrumb": "A L L  Diagnostic Trouble Codes ( DTC ) > Testing and Inspection > P Code Charts > P0300",
+  "aliases": [
+   "A L L  Diagnostic Trouble Codes ( DTC ) > Testing and Inspection > P Code Charts > P0300"
+  ],
+  "section_heading": "CONDITIONS FOR RUNNING THE DTC | CONDITIONS FOR SETTING THE DTC",
+  "text": "CONDITIONS FOR RUNNING THE DTC\n\t- Paraphrased test fixture, not manual text. None of DTCs P0101, P0128 or P0335 is set.\n\t- Engine speed between 525-5,700 RPM.\n\t- Ignition voltage between 9-18 volts.\n\t- Coolant temperature between -7 and +123°C (+19 and +253°F); below -7°C (+19°F) at start-up the test waits until the ECT is more than 21°C (69°F).\n\t- Fuel level above 10 percent.\n\nCONDITIONS FOR SETTING THE DTC\n\tThe PCM sees crankshaft speed variation from a misfire large enough to raise emissions.",
+  "images": [],
+  "links": [],
+  "kind": "dtc",
+  "dtc_codes": [
+   "P0016",
+   "P0101",
+   "P0102",
+   "P0103",
+   "P0107",
+   "P0108",
+   "P0116",
+   "P0117",
+   "P0118",
+   "P0120",
+   "P0125",
+   "P0128",
+   "P0220",
+   "P0300",
+   "P0315",
+   "P0335",
+   "P0336",
+   "P0340",
+   "P0341",
+   "P0608",
+   "P1125",
+   "P1516",
+   "P2101",
+   "P2108",
+   "P2120",
+   "P2125",
+   "P2135",
+   "P2138"
+  ],
+  "image_only": false,
+  "source": "html"
+ },
+ {
+  "id": "4184c22de9df6a3b",
+  "page_id": 8668,
+  "title": "Spark Plug Gap",
+  "breadcrumb": "Specifications > Mechanical Specifications > Powertrain Management > Ignition System > Spark Plug > Spark Plug Gap",
+  "aliases": [
+   "Specifications > Mechanical Specifications > Powertrain Management > Ignition System > Spark Plug > Spark Plug Gap"
+  ],
+  "section_heading": "",
+  "text": "Spark Plug Gap 1.52 mm (0.060 in.)",
+  "images": [],
+  "links": [
+   9453
+  ],
+  "kind": "spec",
+  "dtc_codes": [],
+  "image_only": true,
+  "source": "html"
+ }
+]
